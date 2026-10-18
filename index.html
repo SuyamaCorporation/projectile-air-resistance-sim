@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Projectile Motion Air Resistance Comparison</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+<div class="max-w-5xl mx-auto p-4">
+  <h1 class="text-2xl font-bold mb-1">Projectile Motion: With vs Without Air Resistance</h1>
+  <p class="text-gray-400 text-sm mb-4">Compare trajectories side-by-side.</p>
+
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
+    <div class="bg-gray-800 rounded-xl p-4 space-y-3 lg:col-span-1">
+      <h2 class="font-semibold text-gray-300">Parameters</h2>
+
+      <div>
+        <label class="text-xs text-gray-400">Launch Angle: <span id="angleVal" class="text-white font-bold">45</span>°</label>
+        <input type="range" id="angle" min="5" max="85" value="45" oninput="document.getElementById('angleVal').textContent=this.value" class="w-full mt-1">
+      </div>
+      <div>
+        <label class="text-xs text-gray-400">Initial Speed: <span id="speedVal" class="text-white font-bold">30</span> m/s</label>
+        <input type="range" id="speed" min="5" max="80" value="30" oninput="document.getElementById('speedVal').textContent=this.value" class="w-full mt-1">
+      </div>
+      <div>
+        <label class="text-xs text-gray-400">Mass: <span id="massVal" class="text-white font-bold">1.0</span> kg</label>
+        <input type="range" id="mass" min="0.1" max="10" step="0.1" value="1.0" oninput="document.getElementById('massVal').textContent=parseFloat(this.value).toFixed(1)" class="w-full mt-1">
+      </div>
+      <div>
+        <label class="text-xs text-gray-400">Drag Coeff Cd: <span id="cdVal" class="text-white font-bold">0.47</span></label>
+        <input type="range" id="cd" min="0.01" max="2.0" step="0.01" value="0.47" oninput="document.getElementById('cdVal').textContent=parseFloat(this.value).toFixed(2)" class="w-full mt-1">
+      </div>
+
+      <button onclick="runSim()" class="w-full py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition mt-2">Launch!</button>
+
+      <div class="text-xs text-gray-500 mt-2">
+        Air density = 1.225 kg/m³<br>Area = π×0.1² m² (10cm ball)
+      </div>
+    </div>
+
+    <div class="lg:col-span-3">
+      <canvas id="canvas" class="w-full rounded-xl bg-gray-950" style="height:320px"></canvas>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-gray-800 rounded-xl p-4">
+      <h3 class="font-semibold text-blue-400 mb-2">Without Air Resistance</h3>
+      <div class="grid grid-cols-3 gap-2 text-center text-sm">
+        <div class="bg-gray-900 rounded-lg p-2"><div id="noAirRange" class="font-bold text-blue-300">-</div><div class="text-xs text-gray-500">Range (m)</div></div>
+        <div class="bg-gray-900 rounded-lg p-2"><div id="noAirHeight" class="font-bold text-blue-300">-</div><div class="text-xs text-gray-500">Max Height (m)</div></div>
+        <div class="bg-gray-900 rounded-lg p-2"><div id="noAirTime" class="font-bold text-blue-300">-</div><div class="text-xs text-gray-500">Flight Time (s)</div></div>
+      </div>
+    </div>
+    <div class="bg-gray-800 rounded-xl p-4">
+      <h3 class="font-semibold text-red-400 mb-2">With Air Resistance</h3>
+      <div class="grid grid-cols-3 gap-2 text-center text-sm">
+        <div class="bg-gray-900 rounded-lg p-2"><div id="airRange" class="font-bold text-red-300">-</div><div class="text-xs text-gray-500">Range (m)</div></div>
+        <div class="bg-gray-900 rounded-lg p-2"><div id="airHeight" class="font-bold text-red-300">-</div><div class="text-xs text-gray-500">Max Height (m)</div></div>
+        <div class="bg-gray-900 rounded-lg p-2"><div id="airTime" class="font-bold text-red-300">-</div><div class="text-xs text-gray-500">Flight Time (s)</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const g = 9.81;
+const rho = 1.225;
+const A = Math.PI * 0.01; // 10cm radius ball
+
+function simNoAir(angle, v0) {
+  const rad = angle * Math.PI / 180;
+  const vx = v0 * Math.cos(rad), vy = v0 * Math.sin(rad);
+  const T = 2 * vy / g;
+  const pts = [];
+  const steps = 200;
+  for (let i = 0; i <= steps; i++) {
+    const t = i * T / steps;
+    pts.push({x: vx*t, y: vy*t - 0.5*g*t*t});
+  }
+  return { pts, range: vx*T, height: vy*vy/(2*g), time: T };
+}
+
+function simWithAir(angle, v0, m, Cd) {
+  const rad = angle * Math.PI / 180;
+  let vx = v0 * Math.cos(rad), vy = v0 * Math.sin(rad);
+  let x = 0, y = 0;
+  const dt = 0.002;
+  const pts = [{x, y}];
+  let maxH = 0, t = 0;
+  while (y >= 0 && t < 300) {
+    const v = Math.sqrt(vx*vx + vy*vy);
+    const drag = 0.5 * Cd * rho * A * v;
+    const ax = -drag * vx/v / m;
+    const ay = -g - drag * vy/v / m;
+    vx += ax * dt; vy += ay * dt;
+    x += vx * dt; y += vy * dt;
+    t += dt;
+    if (y > maxH) maxH = y;
+    if (y >= 0) pts.push({x, y});
+  }
+  return { pts, range: pts[pts.length-1].x, height: maxH, time: t };
+}
+
+function runSim() {
+  const angle = parseFloat(document.getElementById('angle').value);
+  const v0 = parseFloat(document.getElementById('speed').value);
+  const m = parseFloat(document.getElementById('mass').value);
+  const Cd = parseFloat(document.getElementById('cd').value);
+
+  const noAir = simNoAir(angle, v0);
+  const withAir = simWithAir(angle, v0, m, Cd);
+
+  document.getElementById('noAirRange').textContent = noAir.range.toFixed(1);
+  document.getElementById('noAirHeight').textContent = noAir.height.toFixed(1);
+  document.getElementById('noAirTime').textContent = noAir.time.toFixed(2);
+  document.getElementById('airRange').textContent = withAir.range.toFixed(1);
+  document.getElementById('airHeight').textContent = withAir.height.toFixed(1);
+  document.getElementById('airTime').textContent = withAir.time.toFixed(2);
+
+  draw(noAir, withAir);
+}
+
+function draw(noAir, withAir) {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  const W = canvas.width, H = canvas.height;
+  const PAD = 40;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#030712';
+  ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = PAD + (H - 2*PAD) * i/5;
+    ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y); ctx.stroke();
+  }
+  for (let i = 0; i <= 8; i++) {
+    const x = PAD + (W - 2*PAD) * i/8;
+    ctx.beginPath(); ctx.moveTo(x, PAD); ctx.lineTo(x, H-PAD); ctx.stroke();
+  }
+
+  const maxX = Math.max(noAir.range, withAir.range) * 1.05;
+  const maxY = Math.max(noAir.height, withAir.height) * 1.2;
+
+  function toCanvas(px, py) {
+    return {
+      x: PAD + (px / maxX) * (W - 2*PAD),
+      y: (H - PAD) - (py / maxY) * (H - 2*PAD)
+    };
+  }
+
+  function drawPath(pts, color) {
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const c = toCanvas(p.x, p.y);
+      i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+    });
+    ctx.stroke();
+  }
+
+  drawPath(noAir.pts, '#60a5fa');
+  drawPath(withAir.pts, '#f87171');
+
+  // Ground
+  ctx.strokeStyle = '#4b5563'; ctx.lineWidth = 1;
+  const ground = toCanvas(0, 0);
+  ctx.beginPath(); ctx.moveTo(PAD, ground.y); ctx.lineTo(W-PAD, ground.y); ctx.stroke();
+
+  // Legend
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#60a5fa'; ctx.fillText('— No drag', PAD+5, PAD+15);
+  ctx.fillStyle = '#f87171'; ctx.fillText('— With drag', PAD+80, PAD+15);
+}
+
+runSim();
+window.addEventListener('resize', runSim);
+</script>
+</body>
+</html>
